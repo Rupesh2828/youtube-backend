@@ -1,0 +1,11 @@
+{
+  "name": "youtube-backend",
+  "version": "1.0.0",
+  "description": "This is youtube backend and the most complex project",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Rupesh Jadhav",
+  "license": "ISC"
+}
