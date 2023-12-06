@@ -5,6 +5,7 @@ class ApiError extends Error {
         errors = [],
         stack = ""
     ){
+        //The super keyword is used to call the constructor of the superclass (Error in this case)
         super(message)
         this.statusCode = statusCode
         this.data = null
@@ -17,6 +18,7 @@ class ApiError extends Error {
         } else{
             Error.captureStackTrace(this, this.constructor)
         }
+        //Error.captureStackTrace method is called to capture the current stack trace and associate it with the instance. This is useful for debugging, as it provides information about the call stack leading up to the creation of the error.
 
     }
 }
