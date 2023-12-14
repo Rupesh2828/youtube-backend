@@ -1,5 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-import { Jwt } from "jsonwebtoken";
+import jwt  from "jsonwebtoken";
 import bcrypt from "bcrypt"
 
 const userSchema = new Schema(
@@ -31,7 +31,6 @@ const userSchema = new Schema(
         },
         coverImage: {
             type: String, //cloudinary url
-            required: true,
         },
         watchHistory: [
             {
@@ -52,11 +51,11 @@ const userSchema = new Schema(
     }
 );
 
-userSchema.pre("save", async function (){
+userSchema.pre("save", async function (next){
 
     if(!this.isModified("password")) return next();
 
-    this.password = bcrypt.hash(this.password, 10)
+    this.password = await bcrypt.hash(this.password, 10)
     next();
 
 });
