@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -34,12 +35,12 @@ const registerUser = asyncHandler(async (req, res) => {
     //step 2:validate the received fields like this in which its checking if the fields are empty or not
     if (
         [fullName, email, password, username].some(
-            (field) => field?.trim === ""
+            (field) => field?.trim() === ""
         )
     ) {
         throw new ApiError(400, "All fields are required");
     }
-
+    
     //step 3: Check if user is already exists : by using username or email
 
     const existedUser = await User.findOne({
@@ -89,7 +90,7 @@ const registerUser = asyncHandler(async (req, res) => {
         password,
     });
 
-    //step 7: removing password and refreshToken from server anf checked user creation
+    //step 7: removing password and refreshToken from server and checked user creation
     const createdUser = await User.findById(user._id).select(
         "-password -refreshToken"
     );
@@ -114,8 +115,8 @@ const loginUser = asyncHandler(async (req, res) => {
 
     const { email, username, password } = req.body;
 
-    if (!username && !email) {
-        throw new ApiError(404, "Username and email is required");
+    if (!(username || email)) {
+        throw new ApiError(404, "Username or email is required");
     }
 
     //This is from validationg user on the basis  of username or email from database. Findone is the mongodb method. check various methods.
@@ -175,10 +176,10 @@ const loginUser = asyncHandler(async (req, res) => {
 
 const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(
-        req.user._id,
+        req.user?._id,
         {
-            $set: {
-                refreshToken: undefined,
+            $unset: {
+                refreshToken: 1,  //this removes field from the document
             },
         },
         {
@@ -200,7 +201,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
-    //storing incoming refresh token
+    //storing incoming refresh token or accessing refresh token
 
     const incomingRefreshToken =
         req.cookies.refreshToken || req.body.refreshToken;
@@ -256,31 +257,43 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
+    //fetching old and new password from body.
     const { oldPassword, newPassword } = req.body;
-
+    //user is logged in and its cause of middleware where req.user= user
     const user = await User.findById(req.user?._id);
-
+    
     //checking if old password is correct or not.
     const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
-
+    
     if (!isPasswordCorrect) {
         throw new ApiError(400, "Invalid old Password");
     }
-
+    console.log( newPassword);
+    
+    //this is for assigning new password to user.`
     user.password = newPassword;
-    await res.save({ validateBeforeSave: false });
-    return res;
+    await user.save({ validateBeforeSave: false });
+
+    
+    return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password changed successfully"))
+    //{} this is for not sending any data
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {
     return res
-        .status(200)
-        .json(200, req.user, "Current user fetched successfully");
+    .status(200)
+    .json(new ApiResponse(200, req.user, "Current user fetched successfully"));
+    //fetched from middleware.
 });
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
     const { fullName, email } = req.body;
-
+     
+    console.log("Request Body:", req.body);
+    
+    //if both fullname or email is not present/empty
     if (!fullName || !email) {
         throw new ApiError(400, "All fields are required");
     }
@@ -303,7 +316,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         );
 });
 
-const updateUserAvatar = asyncHandler(async (req, res) => {
+const updateUserAvatar = asyncHandler(async (req, res) => { 
     const avatarLocalpath = req.file?.path;
 
     if (!avatarLocalpath) {
@@ -380,6 +393,151 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, user, "CoverImage updated Successfully"));
 });
 
+const getUserChannelProfile = asyncHandler( async(req, res)=> {
+     const {username} =req.params   //params gets the url of username
+
+     if(!username?.trim()){
+        throw new ApiError(400,"Username is missing")
+
+     }
+
+    
+     const channel = await User.aggregate([
+        //matching users
+         {
+             $match:{
+                 username: username?.toLowerCase()
+                }
+            },
+
+        //created first pipeline for finding no of subscribers
+
+        {
+            $lookup :{
+                from:"subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers "
+            }
+        },
+        //created second pipeline for finding channels
+        {
+            $lookup :{
+                from:"subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo "
+            }
+        },
+        {
+            $addFields:{
+                subscribersCount :{
+                    $size:"$subscribers"
+                },
+                channelsSubcribedToCount:{
+                    $size:"$subscribedTo"
+                },
+                isSubscribed:{
+                    $cond :{
+                        // $in is an array operator in MongoDB that returns true if a specified value is present in the array.
+                        if:{$in: [req.user?._id, "$subscribers.subscriber"]},
+                        then: true,
+                        else: false
+
+                        // if the condition is true, it means that the user is subscribed, so the value of isSubscribed will be true. If the condition is false, the value will be false.
+                    }
+                }
+            }
+        },
+        {
+            $project:{
+                fullName:1,
+                username:1,
+                subscribersCount: 1,
+                channelsSubcribedToCount:1,
+                isSubscribed: 1,
+                avatar:1,
+                coverImage:1,
+                email:1
+
+            }
+        }
+
+     ])
+
+     console.log(channel);
+
+     if (!channel?.length) {
+        throw new ApiError(404, "Channel does not exists")
+        
+     }
+
+     return res
+     .status(200)
+     .json(
+        new ApiResponse(200, channel[0], "User channel fetched successfully")
+     )
+
+})
+
+const getWatchHistory = asyncHandler(async(req, res)=> {
+    const user = await User.aggregate[
+        {
+            $match: {
+                //_id : req.user._id this will not work, for creating mongoose id below code will work
+                _id : new mongoose.Types.ObjectId(req?.user._id)
+            }
+        },
+        {
+            $lookup:{
+                from:"videos",
+                localField:"watchHistory",
+                foreignField:"_id",
+                as:"watchHistory",
+
+                pipeline:[
+                    {
+                        $lookup:{
+                            from:"users",
+                            localField:"owner",
+                            foreignField:"_id",
+                            as:"owner",
+                            
+                            //isko users ke bahar nikalke dekhna, just for understanding
+                            pipeline:[
+                                {
+                                    $project:{
+                                        fullName:1,
+                                        username:1,
+                                        avatar:1
+
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        $addFields:{
+                            owner:{
+                                //gets an first value from the owner object
+                                $first:"$owner"
+                            }
+                        }
+                    }
+                ]
+
+                
+            }
+        }
+    ]
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, user[0].watchHistory, "WatchHistory fetched successfully"))
+})
+
+
+
 export {
     registerUser,
     loginUser,
@@ -390,4 +548,6 @@ export {
     updateAccountDetails,
     updateUserCoverImage,
     updateUserAvatar,
+    getUserChannelProfile,
+    getWatchHistory
 };
