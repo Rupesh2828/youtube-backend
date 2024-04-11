@@ -1,5 +1,6 @@
 import mongoose, { isValidObjectId } from "mongoose";
 import { Like } from "../models/like.model.js";
+import {Tweet} from "../models/tweet.model.js"
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -86,12 +87,13 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
 
 const toggleTweetLike = asyncHandler(async (req, res) => {
     const { tweetId } = req.params;
-    //TODO: toggle like on tweet
+    console.log(tweetId);
 
     if (!isValidObjectId(tweetId)) {
         throw new ApiError(404, "Invalid tweetId")
         
     }
+
 
     const tweet = await Tweet.findOneAndUpdate(
         {
@@ -124,7 +126,8 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 });
 
 const getLikedVideos = asyncHandler(async (req, res) => {
-    //TODO: get all liked videos
+    //TODO: get all liked videos.
+    //Aggregation pipelines is here.
 });
 
 export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos };

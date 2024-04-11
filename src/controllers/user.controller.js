@@ -160,7 +160,7 @@ const loginUser = asyncHandler(async (req, res) => {
             new ApiResponse(
                 200,
                 {
-                    //this is for if user wants to save these fields on localstrage or he wants to develop mobile app for setuping the cookie so this is good practice.
+                    //this is for if user wants to save these fields on localstorage or he wants to develop mobile app for setuping the cookie so this is good practice.
                     user: loggedInUser,
                     refreshToken,
                     accessToken,
@@ -485,7 +485,7 @@ const getWatchHistory = asyncHandler(async(req, res)=> {
         {
             $match: {
                 //_id : req.user._id this will not work, for creating mongoose id below code will work
-                _id : new mongoose.Types.ObjectId(req?.user._id)
+                _id : new mongoose.Types.ObjectId(req?.user?._id)
             }
         },
         {

@@ -1,4 +1,4 @@
-import mongoose, { mongo } from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
 import { Comment } from "../models/comment.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -7,60 +7,64 @@ import { Video } from "../models/video.model.js";
 
 const getVideoComments = asyncHandler(async (req, res) => {
     //TODO: get all comments for a video
-    const { videoId } = req.params;
-    // const {page = 1, limit = 10} = req.query
+    // const { videoId } = req.params;
+    // // const {page = 1, limit = 10} = req.query
 
-    const video = await Video.findOne(videoId);
+    // const video = await Video.findById(videoId);
 
-    if (!video) {
-        throw new ApiError(404, "Video is not available");
-    }
+    // if (!video) {
+    //     throw new ApiError(404, "Video is not available");
+    // }
 
-    const comment = await Comment.aggregate([
-        {
-            $match: {
-                video: new mongoose.Types.ObjectId(videoId),
-            },
-        },
-        {
-            $lookup: {
-                from: "users",
-                localField: "owner",
-                foreignField: "_id",
-                as: "ownerInfo",
+    // const comment = await Comment.aggregate([
+    //     {
+    //         $match: {
+    //             video: new mongoose.Types.ObjectId(videoId),
+    //         },
+    //     },
+    //     {
+    //         $lookup: {
+    //             from: "users",
+    //             localField: "owner",
+    //             foreignField: "_id",
+    //             as: "ownerInfo",
 
-                pipeline: [
-                    {
-                        $project: {
-                            username: 1,
-                            fullName: 1,
-                            avatar: 1,
-                        },
-                    },
-                ],
-            },
-        },
-        {
-            $addFields: {
-                ownerDetails: {
-                    $first: "$ownerInfo",
-                },
-            },
-        },
-        {
-            $project: {
-                content: 1,
-                createdAt: 1,
-                ownerInfo: 1,
-            },
-        },
-    ]);
+    //             pipeline: [
+    //                 {
+    //                     $project: {
+    //                         username: 1,
+    //                         fullName: 1,
+    //                         avatar: 1,
+    //                     },
+    //                 },
+    //             ],
+    //         },
+    //     },
+    //     {
+    //         $addFields: {
+    //             ownerDetails: {
+    //                 $first: "$ownerInfo",
+    //             },
+    //         },
+    //     },
+    //     {
+    //         $project: {
+    //             content: 1,
+    //             createdAt: 1,
+    //             ownerInfo: 1,
+    //         },
+    //     },
+    // ]);
 });
 
 const addComment = asyncHandler(async (req, res) => {
     // TODO: add a comment to a video
     const { content } = req.body;
     const { videoId } = req.body;
+
+    if(!isValidObjectId(videoId)) {
+        throw new ApiError(401 , "Invalid videoId")
+    }
 
     if (!content) {
         throw new ApiError(404, "Content is required");
@@ -133,6 +137,7 @@ const deleteComment = asyncHandler(async (req, res) => {
     }
 
     const deletedComment = await Comment.findByIdAndDelete(commentId)
+
 
     return res
     .status(200)

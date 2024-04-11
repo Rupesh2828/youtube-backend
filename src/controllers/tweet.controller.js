@@ -12,51 +12,121 @@ const createTweet = asyncHandler(async (req, res) => {
     console.log(content);
 
     if (!content) {
-        throw new ApiError(404, "Write something in content...");
+        throw new ApiError(401, "Write something in content...");
     }
 
-    // if (!req.user?._id) {
-    //     throw new ApiError(404, "User not found")
+    try {
         
-    // }
-
-    const tweet = await Tweet.create({
-        content,
-        owner: req.user?._id,
-    });
-
-    if (!tweet) {
-        throw new ApiError(404, "Tweet didn't created");
+        const tweet = await Tweet.create({
+            content,
+            owner: req.user?._id,
+        });
+    
+        if (!tweet) {
+            throw new ApiError(401, "Tweet didn't created");
+        }
+    
+        return res
+            .status(200)
+            .json(new ApiResponse(201, tweet, "Tweet created successfully"));
+    } catch (error) {
+        throw new ApiError(500 , 'Something went wrong while creating tweet')
     }
-
-    return res
-        .status(200)
-        .json(new ApiResponse(200, tweet, "Tweet created successfully"));
 });
 
 const getUserTweets = asyncHandler(async (req, res) => {
     // TODO: get user tweets
     //Use aggregation pipelines
     //below is wrong.
-    const { tweetId } = req.params;
+    const { userId } = req.params;
 
-    if (!tweetId) {
-        throw new ApiError(404, "TweetId is required");
+    if (!isValidObjectId(userId)) {
+        throw new ApiError(200, "userId is invalid")
+        
     }
 
-    const tweet = await Tweet.findOne({
-        tweetId,
-        owner: req.user?._id,
-    });
+    const tweets = await Tweet.aggregate([
+        {
+            $match: {
+                owner: new mongoose.Types.ObjectId(userId)
+            }
+            
+        },
+        {
+            $lookup:{
+                from: "users",
+                localField:"owner",
+                foreignField:"_id",
+                as:"ownerDetails",
 
-    if (!tweet) {
-        throw new ApiError(404, "Tweet doesnt exists");
-    }
+                pipeline: [
+                    {
+                        $project: {
+                            username:1,
+                            avatar: 1
+                        }
+                    }
+                ]
+                  
+            }
+        },
+        {
+            $lookup:{
+                from:"likes",
+                localField:"_id",
+                foreignField:"tweet",
+                as:"likedDetails",
+
+                pipeline:[
+                    {
+                        $project:{
+                            likedBy:1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $addFields:{
+                ownerDetails:{
+                    $first: "$ownerDetails"
+                },
+                likesCount:{
+                    $size: "$likesDetails"
+                },
+                isLiked:{
+                    $cond: {
+                        if: {$in: [req.user?._id, "$likeDetails.likedBy"]},
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+        {
+            $sort: {
+                createdAt: -1
+            }
+        },
+        {
+            $project: {
+                content: 1,
+                ownerDetails: 1,
+                likesCount: 1,
+                createdAt: 1,
+                isLiked: 1
+            },
+        },
+
+
+    ]);
 
     return res
-        .status(200)
-        .json(new ApiResponse(200, tweet, "User Tweets fetched successfully"));
+    .status(200)
+    .json(new ApiResponse(200, tweets, "Tweets fetched successfully"))
 });
+
+
 
 const updateTweet = asyncHandler(async (req, res) => {
     //TODO: update tweet
@@ -65,6 +135,10 @@ const updateTweet = asyncHandler(async (req, res) => {
 
     if (!tweetId) {
         throw new ApiError(404, "TweetId is required");
+    }
+
+    if (!content) {
+        throw new ApiError(404, "content is required");
     }
 
     const updatedTweet = await Tweet.findByIdAndUpdate(
