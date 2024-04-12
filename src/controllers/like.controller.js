@@ -14,10 +14,10 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Invalid objectId");
     }
 
-    const like = await Like.findOneAndUpdate(
+    const like = await Like.findByIdAndUpdate(
         {
             videoId,
-            owner: req.user?._id,
+            // owner: req.user?._id,
         },
         {
             $set: {
