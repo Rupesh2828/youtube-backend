@@ -5,45 +5,46 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
-const toggleVideoLike = asyncHandler(async (req, res) => {
-    const { videoId } = req.params;
-    //TODO: toggle like on video
-    //check if the videoId is the valid objectId
-
-    if (!isValidObjectId(videoId)) {
-        throw new ApiError(404, "Invalid objectId");
+const toggleVideoLike = asyncHandler(async (req, res) => {  //working fine
+    const { videoId } = req.params
+  
+    
+    if(!isValidObjectId(videoId)) {
+        throw new ApiError(401 , "video is not valid")
     }
 
-    const like = await Like.findByIdAndUpdate(
-        {
-            videoId,
-            // owner: req.user?._id,
-        },
-        {
-            $set: {
-                videoId,
-                owner: req.user?._id,
-            },
-            $inc: {
-                liked: 1,
-            },
-        },
-        {
-            upsert: true, // This option indicates that if no documents match the query, a new document should be created based on the query and update operations. In this case, it ensures that if there is no existing Like document matching the given criteria, a new one will be created.
-            new: true,
-        }
-    );
+    const likedVideos = await Like.findOne({video: videoId})
 
-    return res
-        .status(200)
-        .json(
-            new ApiResponse(200, "Video Like toggled successfully", {
-                liked: like.liked,
-            })
-        );
+    if(likedVideos){
+
+        const unlike =  await Like.deleteOne({ video : videoId})
+
+       if(!unlike) {
+        throw new ApiError(400 , "failed to unlike commet like")
+    }
+      return res.status(200).json(new ApiResponse(200, {}, "removed like"));
+
+    } else {
+       const  like = await Like.create({
+            video: videoId,
+            likeBy : req.user?._id
+        })
+
+        if(!like) {
+            throw new ApiError(400 , " failed to like comment like")
+        }
+
+        await Like.create({
+            video: videoId,
+            likedBy: req.user?._id,
+        });
+        
+
+        return res.status(200).json(new ApiResponse(200, likedVideos || [], "like video successfully!!"));
+    }
 });
 
-const toggleCommentLike = asyncHandler(async (req, res) => {
+const toggleCommentLike = asyncHandler(async (req, res) => {  //working fine
     const { commentId } = req.params;
     //TODO: toggle like on comment
 
@@ -51,28 +52,30 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Invalid commentId");
     }
 
-    const comment = await Comment.findOneAndUpdate(
-        {
-            commentId,
+    const update = {
+        $set: {
             owner: req.user?._id,
         },
-        {
-            $set: {
-                commentId,
-                owner: req.user?.id,
-            },
-            $inc: {
-                liked: 1,
-            },
+        $inc: {
+            liked: 1,
         },
-        {
-            upsert: true,
-            new: true,
-        }
+    };
+
+    // Find the existing Like document or create a new one if it doesn't exist
+    const options = {
+        upsert: true,  // This option indicates that if no documents match the query, a new document should be created based on the query and update operations. In this case, it ensures that if there is no existing Like document matching the given criteria, a new one will be created.
+        new: true,
+    };
+
+    // Use findByIdAndUpdate to find and update the document by its _id
+    const comment = await Like.findByIdAndUpdate(
+        commentId, 
+        update, 
+        options 
     );
 
     if (!comment) {
-        throw new ApiError(404, "Comment not found or user does not have comment")
+        throw new ApiError(401,"Comment not found")
     }
 
     return res
@@ -85,7 +88,7 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
 });
 
 
-const toggleTweetLike = asyncHandler(async (req, res) => {
+const toggleTweetLike = asyncHandler(async (req, res) => {  //working fine
     const { tweetId } = req.params;
     console.log(tweetId);
 
@@ -94,26 +97,28 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
         
     }
 
+    const update = {
+        $set: {
+            owner: req.user?._id,
+        },
+        $inc: {
+            liked: 1,
+        },
+    };
 
-    const tweet = await Tweet.findOneAndUpdate(
-        {
-            tweetId,
-            owner: req.user?._id
-        },
-        {
-            $set: {
-                tweetId,
-                owner: req.user?._id
-            },
-            $inc: {
-                liked : 1
-            }
-        },
-        {
-            upsert: true,
-            new : true
-        }
-    )
+    const options = {
+        upsert: true,  // This option indicates that if no documents match the query, a new document should be created based on the query and update operations. In this case, it ensures that if there is no existing Like document matching the given criteria, a new one will be created.
+        new: true,
+    };
+
+    // Use findByIdAndUpdate to find and update the document by its _id
+    const tweet = await Like.findByIdAndUpdate(
+        tweetId, 
+        update, 
+        options 
+    );
+
+    
 
     if (!tweet) {
         throw new ApiError(404, "Tweet not found")
@@ -125,9 +130,75 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 
 });
 
-const getLikedVideos = asyncHandler(async (req, res) => {
-    //TODO: get all liked videos.
-    //Aggregation pipelines is here.
+const getLikedVideos = asyncHandler(async (req, res) => {  //check this again
+    const likedVideosAggegate = await Like.aggregate([
+        {
+            $match: {
+                likedBy: new mongoose.Types.ObjectId(req.user?._id),
+            },
+        },
+        {
+            $lookup: {
+                from: "videos",
+                localField: "video",
+                foreignField: "_id",
+                as: "likedVideo",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "owner",
+                            foreignField: "_id",
+                            as: "ownerDetails",
+                        },
+                    },
+                    {
+                        $unwind: "$ownerDetails",
+                    },
+                ],
+            },
+        },
+        {
+            $unwind: "$likedVideo",
+        },
+        {
+            $sort: {
+                createdAt: -1,
+            },
+        },
+        {
+            $project: {
+                _id: 0,
+                likedVideo: {
+                    _id: 1,
+                    videoFile: 1,
+                    thumbNail: 1,
+                    owner: 1,
+                    title: 1,
+                    description: 1,
+                    views: 1,
+                    duration: 1,
+                    createdAt: 1,
+                    isPublished: 1,
+                    ownerDetails: {
+                        username: 1,
+                        fullName: 1,
+                        avatar: 1,
+                    },
+                },
+            },
+        },
+    ]);
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                likedVideosAggegate,
+                "liked videos fetched successfully"
+            )
+        );
 });
 
 export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos };

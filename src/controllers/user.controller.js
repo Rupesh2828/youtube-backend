@@ -9,6 +9,7 @@ import jwt from "jsonwebtoken";
 const generateAccessAndRefreshToken = async (userId) => {
     try {
         //finds the user on the basis of userid from databse
+        //userId is the variable that holds the ID of the user you are looking for.
         const user = await User.findById(userId); //for getting user id from database.
 
         const accessToken = user.generateAccessToken();
@@ -16,7 +17,7 @@ const generateAccessAndRefreshToken = async (userId) => {
 
         //saving refreshToken to database
         user.refreshToken = refreshToken;
-        await user.save({ validateBeforeSave: false });
+        await user.save({ validateBeforeSave: false }); 
 
         return { accessToken, refreshToken };
     } catch (error) {
@@ -124,6 +125,7 @@ const loginUser = asyncHandler(async (req, res) => {
         $or: [{ username }, { email }],
     });
 
+
     if (!user) {
         throw new ApiError(404, "User does not exists");
     }
@@ -140,6 +142,8 @@ const loginUser = asyncHandler(async (req, res) => {
         user._id
     );
 
+    //user._id is the ID of the user object that has already been retrieved from the database.
+    //This step was optional.
     const loggedInUser = await User.findOne(user._id).select(
         "-password -refreshToken"
     );
@@ -147,10 +151,11 @@ const loginUser = asyncHandler(async (req, res) => {
     //send tokens via cookies
 
     const options = {
-        //by this cookies can only be modifyble in server not on front-end end
+        //by this,  cookies can only be modifyble in server not on front-end end
         httpOnly: true,
         secure: true,
     };
+
 
     return res
         .status(200)
@@ -170,8 +175,6 @@ const loginUser = asyncHandler(async (req, res) => {
             )
         );
 
-    //check username or email exists
-    //find the user
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
@@ -186,6 +189,7 @@ const logoutUser = asyncHandler(async (req, res) => {
             new: true,
         }
     );
+
 
     const options = {
         //by this cookies can only be modifyble in server not on front-end end
@@ -259,6 +263,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 const changeCurrentPassword = asyncHandler(async (req, res) => {
     //fetching old and new password from body.
     const { oldPassword, newPassword } = req.body;
+
     //user is logged in and its cause of middleware where req.user= user
     const user = await User.findById(req.user?._id);
     
@@ -268,7 +273,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     if (!isPasswordCorrect) {
         throw new ApiError(400, "Invalid old Password");
     }
-    console.log( newPassword);
+    // console.log( newPassword);
     
     //this is for assigning new password to user.`
     user.password = newPassword;

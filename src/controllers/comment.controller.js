@@ -6,61 +6,36 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { Video } from "../models/video.model.js";
 
 const getVideoComments = asyncHandler(async (req, res) => {
-    //TODO: get all comments for a video
-    // const { videoId } = req.params;
-    // // const {page = 1, limit = 10} = req.query
+    //commentId, videoId
+    const {videoId} = req.params;
 
-    // const video = await Video.findById(videoId);
+    if (!isValidObjectId(videoId)) {
+        throw new ApiError(401,"videoId id invalid")
+        
+    }
 
-    // if (!video) {
-    //     throw new ApiError(404, "Video is not available");
-    // }
+    const comments = await Comment.aggregate([
+        {
+            $match:{
+                video: new mongoose.Types.ObjectId(videoId)
+            }
+        },
+        {
+            $lookup:{
+                from: "users",
+                localField:"owner",
+                foreignField:"_id",
+                as:"owner"
+            }
+        }
+    ])
 
-    // const comment = await Comment.aggregate([
-    //     {
-    //         $match: {
-    //             video: new mongoose.Types.ObjectId(videoId),
-    //         },
-    //     },
-    //     {
-    //         $lookup: {
-    //             from: "users",
-    //             localField: "owner",
-    //             foreignField: "_id",
-    //             as: "ownerInfo",
-
-    //             pipeline: [
-    //                 {
-    //                     $project: {
-    //                         username: 1,
-    //                         fullName: 1,
-    //                         avatar: 1,
-    //                     },
-    //                 },
-    //             ],
-    //         },
-    //     },
-    //     {
-    //         $addFields: {
-    //             ownerDetails: {
-    //                 $first: "$ownerInfo",
-    //             },
-    //         },
-    //     },
-    //     {
-    //         $project: {
-    //             content: 1,
-    //             createdAt: 1,
-    //             ownerInfo: 1,
-    //         },
-    //     },
-    // ]);
 });
 
-const addComment = asyncHandler(async (req, res) => {
+const addComment = asyncHandler(async (req, res) => {  //working fine
     // TODO: add a comment to a video
     const { content } = req.body;
-    const { videoId } = req.body;
+    const { videoId } = req.params;
 
     if(!isValidObjectId(videoId)) {
         throw new ApiError(401 , "Invalid videoId")
@@ -91,7 +66,7 @@ const addComment = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, comment, "Comment added successfully"));
 });
 
-const updateComment = asyncHandler(async (req, res) => {
+const updateComment = asyncHandler(async (req, res) => {  //working fine
     // TODO: update a comment
     const { commentId } = req.params;
     const { content } = req.body;
@@ -126,7 +101,7 @@ const updateComment = asyncHandler(async (req, res) => {
         );
 });
 
-const deleteComment = asyncHandler(async (req, res) => {
+const deleteComment = asyncHandler(async (req, res) => {  //working fine
     // TODO: delete a comment
     const {commentId} = req.params;
 
